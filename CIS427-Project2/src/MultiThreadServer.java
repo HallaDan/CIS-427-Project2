@@ -8,18 +8,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MultiThreadServer {
+    // list to store connected clients
     private static List<ClientHandler> clients = new ArrayList<>();
 
     public static void main(String[] args) {
         try {
+            //create server socket
             ServerSocket serverSocket = new ServerSocket(8000);
             System.out.println("IndependentChatServer started.");
 
             while (true) {
+                //accept inoming clients
                 Socket clientSocket = serverSocket.accept();
 
                 System.out.println("New client connected.");
-
+                //handler for new client and start new thread for it
                 ClientHandler clientHandler = new ClientHandler(clientSocket);
                 clients.add(clientHandler);
                 new Thread(clientHandler).start();
@@ -37,6 +40,7 @@ public class MultiThreadServer {
         public ClientHandler(Socket clientSocket) {
             this.clientSocket = clientSocket;
             try {
+                //input and output streams for the client
                 fromClient = new DataInputStream(clientSocket.getInputStream());
                 toClient = new DataOutputStream(
                         new BufferedOutputStream(clientSocket.getOutputStream()));
@@ -48,10 +52,11 @@ public class MultiThreadServer {
         public void run() {
             try {
                 while (true) {
+                    //read messages from client
                     String clientMessage = fromClient.readUTF();
                     System.out.println("Received from client: " + clientMessage);
 
-                    // Send the message back to the same client
+                    //send the message back to the same client
                     toClient.writeUTF("Server: Received your message - " + clientMessage);
                     toClient.flush();
                 }
