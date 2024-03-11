@@ -1,5 +1,8 @@
 import java.io.*;
 import java.net.Socket;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Scanner;
 
 public class Client {
@@ -48,3 +51,4 @@ public class Client {
         }
     }
 }
+
