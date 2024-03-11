@@ -11,4 +11,3 @@ class User {
         this.balance = balance;
     }
 }
-//test
