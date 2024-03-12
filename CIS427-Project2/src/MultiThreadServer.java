@@ -107,7 +107,6 @@ public class MultiThreadServer {
 // Placeholder methods for handling each command
 // You need to implement these methods based on your assignment requirements
 
-
         private String handleLogin(String[] tokens) {
             if (tokens.length != 3) return "400 Bad Request\nIncorrect login syntax.\nEND\n";
             String username = tokens[1];
@@ -357,7 +356,26 @@ public class MultiThreadServer {
 
         private String handleWho(String[] tokens) {
             // List all active users
-            return "200 OK\nActive users listed\nEND\n";
+            //return "200 OK\nActive users listed\nEND\n";
+            if (loggedInUser != null && loggedInUser.userName.equals("Root")) {
+                //make the list of logged in users
+                StringBuilder userList = new StringBuilder("The list of active users:\n");
+
+                //loop through clients arraylist to add the active users
+                for (ClientHandler clientHandler : clients) {
+                    if (clientHandler.loggedInUser != null) {
+                        String username = clientHandler.loggedInUser.userName;
+                        String ipAddress = clientHandler.clientSocket.getInetAddress().getHostAddress();
+                        userList.append(username).append(" ").append(ipAddress).append("\n");
+                    }
+                }
+
+                //return the full response
+                return "200 OK\nThe list of active users:\n" + userList.toString() + "END\n";
+            } else {
+                //if not Root user
+                return "403 Forbidden\nUnauthorized to view user list\nEND\n";
+            }
 
         }
 
