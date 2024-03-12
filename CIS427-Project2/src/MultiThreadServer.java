@@ -180,6 +180,22 @@ public class MultiThreadServer {
             return balance;
         }
 
+        private double getStockBalance(String userId, String stockSymbol, Connection conn) throws SQLException {
+            double stock;
+            double stockBalance = 0.0;
+            String query = "SELECT stock_balance FROM Stocks WHERE user_id = ? AND stock_symbol = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setString(1, userId);
+                pstmt.setString(2, stockSymbol);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        stockBalance = rs.getDouble("stock_balance");
+                    }
+                }
+            }
+            return stockBalance;
+        }
+
 
         private String handleBuy(String[] tokens) {
 
@@ -227,9 +243,46 @@ public class MultiThreadServer {
 
 
         private String handleSell(String[] tokens) {
-            // Perform sell logic
-            return "200 OK\nStock sold\nEND\n";
+            if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
+            // Adjusted for 5 tokens: SELL, stockSymbol, stockAmount, pricePerStock
+            if (tokens.length != 5) return "400 Bad Request\nIncorrect syntax for SELL.\nEND\n";
+
+            String stockSymbol = tokens[1];
+            double stockAmount;
+            double pricePerStock;
+
+            try {
+                stockAmount = Double.parseDouble(tokens[2]);
+                pricePerStock = Double.parseDouble(tokens[3]);
+            } catch (NumberFormatException e) {
+                return "400 Bad Request\nInvalid stock amount or price.\nEND\n";
+            }
+
+            double totalSaleAmount = stockAmount * pricePerStock;
+
+            try (Connection conn = MultiThreadServer.getDBConnection()) {
+                conn.setAutoCommit(false); // Start transaction
+
+                // Check if user has enough stock to sell
+                double stockBalance = getStockBalance(loggedInUser.userId, stockSymbol, conn);
+                if (stockBalance < stockAmount) {
+                    return "400 Bad Request\nNot enough stock to sell.\nEND\n";
+                }
+
+                // Update user's stock balance
+                updateStocks(loggedInUser.userId, stockSymbol, -stockAmount, conn);
+
+                // Update user's USD balance
+                updateBalance(loggedInUser.userId, totalSaleAmount, conn);
+
+                conn.commit(); // Commit the transaction
+                return String.format("200 OK\nSOLD: %f of %s. New USD balance: $%.2f\nEND\n", stockAmount, stockSymbol, getCurrentBalance(loggedInUser.userId, conn));
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return "500 Internal Server Error\nDatabase error.\nEND\n";
+            }
         }
+
         //Test addition
         private String checkDB(String[] tokens) {
             printDatabase();
@@ -237,9 +290,31 @@ public class MultiThreadServer {
         }
         //end Test addition
         private String handleList(String[] tokens) {
-            // List stocks for the user or all users if root
-            return "200 OK\nStocks listed\nEND\n";
+            if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
+
+            StringBuilder response = new StringBuilder("200 OK\nThe list of records in the Stocks database for user ");
+            response.append(loggedInUser.userId).append(":\n");
+
+            try (Connection conn = getDBConnection();
+                 PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM Stocks WHERE user_id = ?")) {
+                pstmt.setString(1, loggedInUser.userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        response.append(rs.getString("ID")).append(" ")
+                                .append(rs.getString("stock_symbol")).append(" ")
+                                .append(rs.getDouble("stock_balance")).append(" ")
+                                .append(rs.getString("user_id")).append("\n");
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return "500 Internal Server Error\nDatabase error\nEND\n";
+            }
+
+            response.append("END\n");
+            return response.toString();
         }
+
 
         private String handleDeposit(String[] tokens) {
             // Perform deposit logic
@@ -247,8 +322,27 @@ public class MultiThreadServer {
         }
 
         private String handleBalance(String[] tokens) {
-            // Retrieve and send balance info
-            return "200 OK\nBalance info\nEND\n";
+            if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
+
+            StringBuilder response = new StringBuilder("200 OK\nBalance for user ");
+            response.append(loggedInUser.userName).append(": $");
+
+            try (Connection conn = getDBConnection();
+                 PreparedStatement pstmt = conn.prepareStatement("SELECT usd_balance FROM Users WHERE ID = ?")) {
+                pstmt.setString(1, loggedInUser.userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        response.append(String.format("%.2f", rs.getDouble("usd_balance")));
+                    } else {
+                        return "404 Not Found\nUser not found in the database\nEND\n";
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return "500 Internal Server Error\nDatabase error\nEND\n";
+            }
+            response.append("\nEND\n");
+            return response.toString();
         }
 
         private String handleWho(String[] tokens) {
