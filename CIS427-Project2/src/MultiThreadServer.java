@@ -11,15 +11,15 @@ import java.util.List;
 public class MultiThreadServer {
     // list to store connected clients
 
-
+    private static ServerSocket serverSocket;
     private static List<ClientHandler> clients = new ArrayList<>();
 
     public static void main(String[] args) {
         try {
 
             //create server socket
-            ServerSocket serverSocket = new ServerSocket(8000);
-            System.out.println("IndependentChatServer started.");
+            ServerSocket serverSocket = new ServerSocket(8306);
+            System.out.println("Server Started.");
             // Initialize database tables and users
             createDBTables();
             initializeUsers();
@@ -52,6 +52,16 @@ public class MultiThreadServer {
                 fromClient = new DataInputStream(clientSocket.getInputStream());
                 toClient = new DataOutputStream(
                         new BufferedOutputStream(clientSocket.getOutputStream()));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        public void closeConnection() {
+            try {
+                //close the input, output, and client socket
+                fromClient.close();
+                toClient.close();
+                clientSocket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -348,6 +358,7 @@ public class MultiThreadServer {
         private String handleWho(String[] tokens) {
             // List all active users
             return "200 OK\nActive users listed\nEND\n";
+
         }
 
         private String handleLookup(String[] tokens) {
@@ -357,12 +368,65 @@ public class MultiThreadServer {
 
         private String handleQuit(String[] tokens) {
             // Handle client quit
-            return "200 OK\nClient quit\nEND\n";
+            //return "200 OK\nClient quit\nEND\n";
+
+            if (loggedInUser != null) {
+                //assuming the username is stored in loggedInUser.userName
+                String username = loggedInUser.userName;
+
+                //find the corresponding ClientHandler
+                for (ClientHandler clientHandler : clients) {
+                    if (clientHandler.loggedInUser != null && clientHandler.loggedInUser.userName.equals(username)) {
+                        //send a response indicating quit
+                        String response = "200 OK\nClient quit\nEND\n";
+                        try {
+                            //send the response to the client
+                            toClient.writeUTF(response);
+                            toClient.flush();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        //close the connection for this client
+                        clientHandler.closeConnection();
+                        break;
+                    }
+                }
+
+                //clear the logged-in user for this ClientHandler
+                loggedInUser = null;
+
+                return "200 OK\nClient quit\nEND\n";
+            } else {
+                return "403 Forbidden\nNot logged in\nEND\n";
+            }
         }
 
         private String handleShutdown(String[] tokens) {
             // Shutdown server if user is root
-            return "200 OK\nServer shutting down\nEND\n";
+            //return "200 OK\nServer shutting down\nEND\n";
+
+            //check if the user is Root to shut down the server
+            if (loggedInUser != null && loggedInUser.userName.equals("Root")) {
+                try {
+                    //close all client connections
+                    for (ClientHandler clientHandler : clients) {
+                        clientHandler.closeConnection();
+                    }
+                    //clear the list of clients
+                    clients.clear();
+
+                    //close the server socket
+                    serverSocket.close();
+
+                    return "200 OK\nServer shutting down\nEND\n";
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return "500 Internal Server Error\nError shutting down the server\nEND\n";
+                }
+            } else {
+                return "403 Forbidden\nUnauthorized to shut down the server\nEND\n";
+            }
         }
 
 
@@ -376,7 +440,7 @@ public class MultiThreadServer {
                     String response = processClientMessage(clientMessage);
 
                     //send the message back to the same client
-                    toClient.writeUTF("Server: Received your message - " + response);
+                    toClient.writeUTF(response);
                     toClient.flush();
                 }
             } catch (IOException e) {
@@ -486,11 +550,12 @@ public class MultiThreadServer {
         }
     } //initialize users
 
+
     //testing functions
     public static String printDatabase() {
         StringBuilder databaseOutput = new StringBuilder();
         try (Connection conn = getDBConnection()) {
-            databaseOutput.append("Contents of Users Table:\n");
+            databaseOutput.append("\nContents of Users Table:\n");
             databaseOutput.append(printUsersTable(conn));
 
             databaseOutput.append("\nContents of Stocks Table:\n");

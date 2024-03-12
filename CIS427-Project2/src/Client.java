@@ -1,8 +1,5 @@
 import java.io.*;
 import java.net.Socket;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.Scanner;
 
 public class Client {
@@ -16,7 +13,11 @@ public class Client {
             // connect to server on 'localhost'
             // will change so that the user can
             // enter their own IP
-            Socket socket = new Socket("localhost", 8000);
+            Scanner scanner = new Scanner(System.in);
+            /*System.out.println("Enter IP Address: ");
+            String IP = scanner.nextLine();
+            */
+            Socket socket = new Socket("localhost", 8306);
 
             //initialize the input and output streams for comms with server
             fromServer = new DataInputStream(socket.getInputStream());
@@ -28,24 +29,38 @@ public class Client {
                     while (true) {
                         //read message from server
                         String serverMessage = fromServer.readUTF();
-                        System.out.println("Received from server: " + serverMessage);
+                        System.out.println("\nReceived from server: " + serverMessage);
+
+                        System.out.print("\nSend to server: ");
+                        String clientMessage = scanner.nextLine();
+
+                        // send the message to the server
+                        toServer.writeUTF(clientMessage);
+                        toServer.flush();
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }).start();
-            //read input from user keyboard.. (typing message)
-            Scanner scanner = new Scanner(System.in);
 
+            System.out.print("\nSend to server: ");
+            String clientMessage = scanner.nextLine();
+
+            // send the message to the server
+            toServer.writeUTF(clientMessage);
+            toServer.flush();
+
+            /*
+            //read input from user keyboard.. (typing message)
             while (true) {
                 // prompt to send message
-                System.out.print("Enter a message to send to the server: ");
+                System.out.print("\nEnter a message to send to the server: ");
                 String clientMessage = scanner.nextLine();
 
                 // send the message to the server
                 toServer.writeUTF(clientMessage);
                 toServer.flush();
-            }
+            }*/
         } catch (IOException ex) {
             ex.printStackTrace();
         }
