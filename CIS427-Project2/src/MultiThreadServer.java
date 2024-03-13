@@ -358,7 +358,7 @@ public class MultiThreadServer {
             if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
 
 
-            //for holding temp value before passing to UPDATE call
+            //for holding temp value before passing to DB to update
             double depositAmount;
             try {
                 depositAmount = Double.parseDouble(tokens[1]);
@@ -371,7 +371,6 @@ public class MultiThreadServer {
                  PreparedStatement pstmt = conn.prepareStatement("UPDATE Users SET usd_balance = ? WHERE ID = ?")) {
                 loggedInUser.balance = getCurrentBalance(loggedInUser.userId, conn);
                 loggedInUser.balance += depositAmount;
-                System.out.println(loggedInUser.balance);
                 pstmt.setDouble(1, loggedInUser.balance);
                 pstmt.setString(2, loggedInUser.userId);
                 pstmt.executeUpdate();
