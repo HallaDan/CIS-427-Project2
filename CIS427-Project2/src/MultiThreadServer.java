@@ -380,8 +380,40 @@ public class MultiThreadServer {
         }
 
         private String handleLookup(String[] tokens) {
-            // Lookup stock info
-            return "200 OK\nStock info\nEND\n";
+            if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
+            if (tokens.length < 2) return "400 Bad Request\nSyntax: LOOKUP <stock_name>\nEND\n";
+
+            String searchQuery = tokens[1]; // Assuming stock name or symbol is the second token
+            StringBuilder response = new StringBuilder();
+
+            try (Connection conn = MultiThreadServer.getDBConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(
+                         "SELECT * FROM Stocks WHERE user_id = ? AND (stock_symbol LIKE ?)")) {
+                pstmt.setString(1, loggedInUser.userId);
+                pstmt.setString(2, "%" + searchQuery + "%"); // Allows partial matches
+
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    int matchCount = 0;
+                    while (rs.next()) {
+                        if (matchCount == 0) {
+                            response.append("200 OK\nFound matches\n");
+                        }
+                        // Assuming stock_symbol and stock_balance are the required fields to display
+                        response.append(rs.getString("stock_symbol")).append(" ").append(rs.getDouble("stock_balance")).append("\n");
+                        matchCount++;
+                    }
+
+                    if (matchCount == 0) {
+                        return "404 Your search did not match any records.\nEND\n";
+                    } else {
+                        response.append("END\n");
+                        return response.toString();
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return "500 Internal Server Error\nDatabase error\nEND\n";
+            }
         }
 
         private String handleQuit(String[] tokens) {
@@ -569,7 +601,7 @@ public class MultiThreadServer {
     } //initialize users
 
 
-    //testing functions
+    //testing functions/////////////////////////////////
     public static String printDatabase() {
         StringBuilder databaseOutput = new StringBuilder();
         try (Connection conn = getDBConnection()) {
@@ -617,7 +649,7 @@ public class MultiThreadServer {
         return output.toString();
     }
 
-    //end of testing functions
+    //end of testing functions///////////////////////////
 
 
 }
