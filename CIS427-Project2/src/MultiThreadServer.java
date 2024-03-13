@@ -18,7 +18,7 @@ public class MultiThreadServer {
         try {
 
             //create server socket
-            ServerSocket serverSocket = new ServerSocket(8306);
+            serverSocket = new ServerSocket(8306);
             System.out.println("Server Started.");
             // Initialize database tables and users
             createDBTables();
@@ -120,7 +120,7 @@ public class MultiThreadServer {
                 try (ResultSet rs = pstmt.executeQuery()) {
                     if (rs.next()) {
                         this.loggedInUser = new User(rs.getString("ID"), username, password, rs.getDouble("usd_balance")); // Assuming a matching constructor in User class
-                        return "200 OK\nUser logged in\nEND\n";
+                        return "\n200 OK\n";
                     }
                 }
                 return "403 Forbidden\nWrong username or password\nEND\n";
@@ -133,7 +133,7 @@ public class MultiThreadServer {
         private String handleLogout(String[] tokens) {
             if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
             loggedInUser = null;
-            return "200 OK\nUser logged out\nEND\n";
+            return "\n200 OK\n";
         }
 
         private void updateStocks(String userId, String stockSymbol, double stockAmount, Connection conn) throws SQLException {
@@ -221,7 +221,7 @@ public class MultiThreadServer {
                 stockAmount = Double.parseDouble(tokens[2]);
                 pricePerStock = Double.parseDouble(tokens[3]);
             } catch (NumberFormatException e) {
-                return "400 Bad Request\nInvalid stock amount or price.\nEND\n";
+                return "400 Bad Request\nInvalid stock amount or price.\n";
             }
 
             double totalCost = stockAmount * pricePerStock;
@@ -232,7 +232,7 @@ public class MultiThreadServer {
                 // Retrieve current balance
                 double currentBalance = getCurrentBalance(loggedInUser.userId, conn);
                 if (currentBalance < totalCost) {
-                    return "400 Bad Request\nNot enough balance.\nEND\n";
+                    return "400 Bad Request\nNot enough balance.\n";
                 }
 
                 // Update user balance
@@ -242,7 +242,7 @@ public class MultiThreadServer {
                 updateStocks(loggedInUser.userId, stockSymbol, stockAmount, conn);
 
                 conn.commit(); // Commit the transaction
-                return String.format("200 OK\nBOUGHT: New balance: %.2f %s. USD balance $%.2f\nEND\n", stockAmount, stockSymbol, currentBalance - totalCost);
+                return String.format("200 OK\nBOUGHT: New balance: %.2f %s. USD balance $%.2f\n", stockAmount, stockSymbol, currentBalance - totalCost);
             } catch (SQLException e) {
                 e.printStackTrace();
                 return "500 Internal Server Error\nDatabase error.\nEND\n";
@@ -285,7 +285,7 @@ public class MultiThreadServer {
                 updateBalance(loggedInUser.userId, totalSaleAmount, conn);
 
                 conn.commit(); // Commit the transaction
-                return String.format("200 OK\nSOLD: %f of %s. New USD balance: $%.2f\nEND\n", stockAmount, stockSymbol, getCurrentBalance(loggedInUser.userId, conn));
+                return String.format("200 OK\nSOLD: %f of %s. New USD balance: $%.2f\n", stockAmount, stockSymbol, getCurrentBalance(loggedInUser.userId, conn));
             } catch (SQLException e) {
                 e.printStackTrace();
                 return "500 Internal Server Error\nDatabase error.\nEND\n";
@@ -301,18 +301,38 @@ public class MultiThreadServer {
         private String handleList(String[] tokens) {
             if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
 
-            StringBuilder response = new StringBuilder("200 OK\nThe list of records in the Stocks database for user ");
-            response.append(loggedInUser.userId).append(":\n");
+            StringBuilder response = new StringBuilder("\n");
+
+            //check if the logged-in user is a root user
+            boolean isRoot = loggedInUser.userName.equals("Root");
 
             try (Connection conn = getDBConnection();
-                 PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM Stocks WHERE user_id = ?")) {
-                pstmt.setString(1, loggedInUser.userId);
+                 PreparedStatement pstmt = conn.prepareStatement(
+                         isRoot ? "SELECT s.*, u.user_name FROM Stocks s INNER JOIN Users u ON s.user_id = u.ID" :
+                                 "SELECT * FROM Stocks WHERE user_id = ?")) {
+                if (!isRoot) {
+                    //if not a root user, set the user_id parameter in the query
+                    pstmt.setString(1, loggedInUser.userId);
+                }
                 try (ResultSet rs = pstmt.executeQuery()) {
+                    int count = 0;
                     while (rs.next()) {
-                        response.append(rs.getString("ID")).append(" ")
-                                .append(rs.getString("stock_symbol")).append(" ")
-                                .append(rs.getDouble("stock_balance")).append(" ")
-                                .append(rs.getString("user_id")).append("\n");
+                        count++;
+                        if (isRoot) {
+                            // if root user, include the user_name in the response
+                            response.append(count).append(" ")
+                                    .append(rs.getString("stock_symbol")).append(" ")
+                                    .append(rs.getDouble("stock_balance")).append(" ")
+                                    .append(rs.getString("user_name")).append("\n");
+                        } else {
+                            //if not root user, only include ID, stock_symbol, and stock_balance
+                            response.append(count).append(" ")
+                                    .append(rs.getString("stock_symbol")).append(" ")
+                                    .append(rs.getDouble("stock_balance")).append("\n");
+                        }
+                    }
+                    if (count == 0) {
+                        return "404 Not Found\nNo records found\nEND\n";
                     }
                 }
             } catch (SQLException e) {
@@ -320,7 +340,14 @@ public class MultiThreadServer {
                 return "500 Internal Server Error\nDatabase error\nEND\n";
             }
 
-            response.append("END\n");
+            response.append("\n");
+            if (!isRoot) {
+                //if not a root user, append the user's username and format the response
+                response.insert(0, "200 OK\nThe list of records in the Stock database for " + loggedInUser.userName + ":\n");
+            } else {
+                //if root user format the response accordingly
+                response.insert(0, "200 OK\nThe list of records in the Stock database:\n");
+            }
             return response.toString();
         }
 
@@ -330,6 +357,7 @@ public class MultiThreadServer {
             //return "200 OK\nDeposit successful\nEND\
             if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
 
+
             //for holding temp value before passing to UPDATE call
             double depositAmount;
             try {
@@ -338,12 +366,12 @@ public class MultiThreadServer {
                 return "400 Bad Request\nInvalid deposit amount\nEND\n";
             }
 
-            // update the user's balance to temp variable
-            loggedInUser.balance += depositAmount;
-
             //update the user's balance in the database
             try (Connection conn = MultiThreadServer.getDBConnection();
                  PreparedStatement pstmt = conn.prepareStatement("UPDATE Users SET usd_balance = ? WHERE ID = ?")) {
+                loggedInUser.balance = getCurrentBalance(loggedInUser.userId, conn);
+                loggedInUser.balance += depositAmount;
+                System.out.println(loggedInUser.balance);
                 pstmt.setDouble(1, loggedInUser.balance);
                 pstmt.setString(2, loggedInUser.userId);
                 pstmt.executeUpdate();
@@ -352,9 +380,10 @@ public class MultiThreadServer {
                 return "500 Internal Server Error\nDatabase error\nEND\n";
             }
 
+
             // response to client
             StringBuilder response = new StringBuilder("200 OK\nDeposit successful. New balance $");
-            response.append(String.format("%.2f", loggedInUser.balance)).append("\nEND\n");
+            response.append(String.format("%.2f", loggedInUser.balance)).append("\n");
 
             return response.toString();
         }
@@ -379,7 +408,7 @@ public class MultiThreadServer {
                 e.printStackTrace();
                 return "500 Internal Server Error\nDatabase error\nEND\n";
             }
-            response.append("\nEND\n");
+            response.append("\n");
             return response.toString();
         }
 
@@ -388,7 +417,7 @@ public class MultiThreadServer {
             //return "200 OK\nActive users listed\nEND\n";
             if (loggedInUser != null && loggedInUser.userName.equals("Root")) {
                 //make the list of logged in users
-                StringBuilder userList = new StringBuilder("The list of active users:\n");
+                StringBuilder userList = new StringBuilder("\n");
 
                 //loop through clients arraylist to add the active users
                 for (ClientHandler clientHandler : clients) {
@@ -400,7 +429,7 @@ public class MultiThreadServer {
                 }
 
                 //return the full response
-                return "200 OK\nThe list of active users:\n" + userList.toString() + "END\n";
+                return "200 OK\nThe list of active users:\n" + userList.toString() + "\n";
             } else {
                 //if not Root user
                 return "403 Forbidden\nUnauthorized to view user list\nEND\n";
@@ -425,7 +454,7 @@ public class MultiThreadServer {
                     int matchCount = 0;
                     while (rs.next()) {
                         if (matchCount == 0) {
-                            response.append("200 OK\nFound matches\n");
+                            response.append("200 OK\n\nFound matches\n");
                         }
                         // Assuming stock_symbol and stock_balance are the required fields to display
                         response.append(rs.getString("stock_symbol")).append(" ").append(rs.getDouble("stock_balance")).append("\n");
@@ -433,9 +462,9 @@ public class MultiThreadServer {
                     }
 
                     if (matchCount == 0) {
-                        return "404 Your search did not match any records.\nEND\n";
+                        return "404 Your search did not match any records.\n";
                     } else {
-                        response.append("END\n");
+                        response.append("\n");
                         return response.toString();
                     }
                 }
@@ -501,10 +530,10 @@ public class MultiThreadServer {
                     return "200 OK\nServer shutting down\nEND\n";
                 } catch (IOException e) {
                     e.printStackTrace();
-                    return "500 Internal Server Error\nError shutting down the server\nEND\n";
+                    return "500 Internal Server Error\nError shutting down the server\n";
                 }
             } else {
-                return "403 Forbidden\nUnauthorized to shut down the server\nEND\n";
+                return "403 Forbidden\nUnauthorized to shut down the server\n";
             }
         }
 
