@@ -327,7 +327,36 @@ public class MultiThreadServer {
 
         private String handleDeposit(String[] tokens) {
             // Perform deposit logic
-            return "200 OK\nDeposit successful\nEND\n";
+            //return "200 OK\nDeposit successful\nEND\
+            if (loggedInUser == null) return "403 Forbidden\nNot logged in\nEND\n";
+
+            //for holding temp value before passing to UPDATE call
+            double depositAmount;
+            try {
+                depositAmount = Double.parseDouble(tokens[1]);
+            } catch (NumberFormatException e) {
+                return "400 Bad Request\nInvalid deposit amount\nEND\n";
+            }
+
+            // update the user's balance to temp variable
+            loggedInUser.balance += depositAmount;
+
+            //update the user's balance in the database
+            try (Connection conn = MultiThreadServer.getDBConnection();
+                 PreparedStatement pstmt = conn.prepareStatement("UPDATE Users SET usd_balance = ? WHERE ID = ?")) {
+                pstmt.setDouble(1, loggedInUser.balance);
+                pstmt.setString(2, loggedInUser.userId);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return "500 Internal Server Error\nDatabase error\nEND\n";
+            }
+
+            // response to client
+            StringBuilder response = new StringBuilder("200 OK\nDeposit successful. New balance $");
+            response.append(String.format("%.2f", loggedInUser.balance)).append("\nEND\n");
+
+            return response.toString();
         }
 
         private String handleBalance(String[] tokens) {
