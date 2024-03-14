@@ -3,12 +3,28 @@
 
 Instructions to run:
 
-- open one powershell (or cmd) prompt for the Server
-- open however many for the amount of clients you want
+-works totally fine in separate consoles
 
-- cd to src folder containing .java files -> cd D:\Users\'user'\IdeaProjects\CIS427-Project2\src
-- from powershell you are running the MultiThreadServer in (run as commands in this order)
-- ' javac MultiThreadServer.java Client.java User.java '
-- ' java -classpath ".;sqlite-jdbc-3.45.1.0.jar;slf4j-api-1.7.36.jar" MultiThreadServer '
-- then in the other client powershell prompts simply run
-- ' java Client '
+-commands: cd to \src
+
+To compile the Java files: make
+
+To run the Server: make run-server
+
+To run the Client: make run-client
+
+To clean up compiled files: make clean
+
+'make clean' to remove .class files
+
+on windows:
+
+clean
+
+del *.class
+on linux:
+
+clean:
+
+rm -f *.class
+change ';' to ':' in file path for Linux
