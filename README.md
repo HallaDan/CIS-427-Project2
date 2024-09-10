@@ -81,4 +81,4 @@ make clean
 
 - **SQLite JDBC**: Used for database connection (already included in `CLASSPATH`).
 - **SLF4J**: A logging API used in the server (also referenced in `CLASSPATH`).
-```
+
