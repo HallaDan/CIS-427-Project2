@@ -1,5 +1,3 @@
-Here's the entire `README.md` in one block for easier copying:
-
 
 # CIS-427-Project2
 
